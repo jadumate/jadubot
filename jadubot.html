@@ -1,0 +1,131 @@
+<html>
+<head>
+<meta charset='UTF-8'>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+<script src="config.js"></script>
+
+<script>
+var metadata = {};
+
+function getUsername(userId)
+{
+   for(var i=0; i<metadata.users.length; i++)
+      if( metadata.users[i].id === userId ) return metadata.users[i].real_name;
+
+   return null;
+}
+
+function postMessageSimple(channel, msg)
+{
+   var text = {
+       as_user: false,
+       username: config.botName,
+       channel : channel,
+       type : 'message',
+       text : msg
+   };
+   window.ws.send( JSON.stringify(text) );
+}
+
+function dump(msg)
+{
+   $("#dump").append(msg);
+}
+
+function postMessage(channel, msg)
+{
+    var params = {
+       token : config.apiToken,
+       encoding: 'utf8',
+       channel : channel,
+       as_user: false,
+       username: config.botName,
+       text: msg
+    };
+
+    $.post(
+        'https://slack.com/api/chat.postMessage',
+        params,
+        function(status){
+           console.log(status);
+        }
+    );
+
+    console.log('#slack send : ' + msg);
+}
+
+function processMessage(json)
+{
+    if(! json.text) return;
+    if(json.bot_id !== undefined) return;
+
+    var userName = getUsername(json.user);
+
+    dump( userName + ' : ' + json.text + '\n');
+
+    if(json.text.indexOf('Hello') >= 0){
+        postMessage(json.channel, 'Hello ' + userName);
+    }
+}
+
+function onevent(event) {
+    var json = JSON.parse(event.data);
+    if( json.type == 'message'){
+        processMessage(json);
+    }
+    console.log('RAW: ' + event.data);
+};
+
+function openSocket(url) {
+    console.log('WS:url : ' + url);
+    window.ws = new WebSocket(url);
+    window.ws.onmessage = onevent;
+    window.ws.onopen = function() {
+        console.log('WS:opened');
+    };
+}
+
+function run(){
+    $.post(
+       'https://slack.com/api/rtm.start', 
+       { token : config.apiToken, type : 'hello' }, 
+       function(data){
+           if(data && data.ok) {
+               metadata = data;
+               openSocket(data.url);
+           }
+       }
+    );
+
+    return false;
+}
+
+
+function sendWebhook(url, msg)
+{
+    $.ajax({
+        data: 'payload=' + JSON.stringify({ "text": msg }),
+        dataType: 'json',
+        processData: false,
+        type: 'POST',
+        url: url
+    });
+}
+
+function test()
+{
+    sendWebhook(config.urlWebhookGeneral, 'Hello Slack');
+}
+
+</script>
+</head>
+
+<body onload="return run();">
+<form action='' methos='POST'>
+<div style='width:100%;'>Jadubot V1.0 by jadumate@gmail.com</div>
+<textarea id='dump' style='width:100%; height:80%;'>
+</textarea>
+</form>
+</body>
+</html>
+
